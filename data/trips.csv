@@ -1,0 +1,28 @@
+meters,trip,city,reason
+40,Cary to Commons,Troy,Food
+70,Apple IL3 to Caffe Macs,Cupertino,Food
+50,Apple CC1 to CC2,Cupertino,Food
+120,Home to the Girellis',Colchester,People
+180,2329 to DaVinci,Troy,Food
+230,Cary to the Union,Troy,Food
+240,DCC to Sage Labs,Troy,School
+300,Apple CC1 to Le Boulanger,Cupertino,Food
+330,2329 to SaveALot,Troy,Food
+430,Cary to the DCC,Troy,School
+500,Davison to Pizza Bella,Troy,Food
+530,CHS to MBS,Colchester,People
+650,2329 to Carol's 14th St. apartment,Troy,People
+750,Home to Safeway,Cupertino,Food
+620,CHS to Bayside,Colchester,Other
+1020,Home to UTC Food Court,San Diego,Food
+1110,Davison to Carol's Eagle St. apartment,Troy,People
+1080,2329 to Sage Labs,Troy,School
+1260,2329 to Pizza Bella,Troy,Food
+1440,Apple CC1 to Caffe Macs,Cupertino,Work
+1460,MBS to Home,Colchester,Other
+1510,Home to VTA-23,Cupertino,Other
+1730,Home to Apple IL3,Cupertino,Work
+1610,Cary to Downtown,Troy,Other
+2650,Home to Apple CC1,Cupertino,Work
+3490,Home to HSBC,Cupertino,Other
+3580,Home to Qualcomm AA,San Diego,Work

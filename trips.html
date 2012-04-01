@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>hortont &middot; trips</title>
+        <script type="text/javascript" src="d3.v2.min.js"></script>
+        <style type="text/css">
+body {
+    font: 10pt Helvetica, sans-serif;
+    background-color: #eee;
+}
+
+.bar text.label {
+    fill: #666;
+    text-shadow: 0px 1px 0px rgba(255,255,255,0.5);
+}
+
+rect, path {
+    shape-rendering: crispEdges;
+}
+
+.aa {
+    shape-rendering: auto !important;
+}
+
+.bar text.value {
+    fill: #888;
+    font-weight: bold;
+}
+
+text.legend {
+    fill: #555;
+    font-size: 12pt;
+}
+
+path.tripLine {
+    stroke-opacity: 0.5;
+}
+
+path.tripLineBig {
+    stroke-width: 6;
+    stroke-opacity: 1.0;
+    -webkit-svg-shadow: 0px 1px 0px rgba(0,0,0,0.5);
+}
+
+#svgContainer {
+    margin: 0 auto;
+    width: 1000px;
+    height: 650px;
+}
+
+div.buttonGroup {
+    border: 1px solid #aaa;
+    display: inline-block;
+    border-radius: 5px;
+    padding: 8px 0px 8px 0px;
+    color: #333;
+    text-shadow: 0px 1px 0px rgba(255,255,255,0.8);
+}
+
+div.buttonTitle {
+    display: inline;
+    padding: 8px 4px 8px 8px;
+    font-weight: bold;
+}
+
+a.button {
+    border-left: 1px solid #aaa;
+    padding: 8px;
+    background-color: #ddd;
+    text-decoration: none;
+    color: #888;
+}
+
+a.button.selected {
+    background-color: #bbb;
+    color: #333;
+    
+    -webkit-transition: 0.4s ease;
+    -webkit-transition-property: background-color, color;
+    -moz-transition: 0.4s ease;
+    -moz-transition-property: background-color, color;
+    -o-transition: 0.4s ease;
+    -o-transition-property: background-color, color;
+    -ms-transition: 0.4s ease;
+    -ms-transition-property: background-color, color;
+    transition: 0.4s ease;
+    transition-property: background-color, color;
+}
+
+a.button:last-child {
+    border-radius: 0px 4px 4px 0px;
+}
+
+div.buttonGroup:not(:last-child) {
+    margin-right: 20px;
+}
+
+div.buttonContainer {
+    margin: 40px 0px 10px 0px;
+    text-align: center;
+}
+        </style>
+            <script type="text/javascript">
+var m = [10, 500, 10, 70],
+    w = 1000 - m[1] - m[3],
+    h = 650 - m[0] - m[2];
+
+var format = d3.format(",.0f");
+var decimalFormat = d3.format(",.2f");
+
+var cityColors = {"Troy": "#93DFB8", "Colchester": "#FFC8BA", "Cupertino": "#E3AAD6", "San Diego": "#B5D8EB"};
+var reasonColors = {"Work": "#E3AAD6", "Other": "#CCC", "People": "#93DFB8", "Food": "#B5D8EB", "School": "#FFC8BA"};
+
+var citySortOrder = {"Colchester": 1, "Troy": 2, "San Diego": 3, "Cupertino": 4};
+var reasonSortOrder = {"Other": 1, "School": 2, "People": 3, "Food": 4, "Work": 5};
+
+var cityNames = ["Troy", "Colchester", "San Diego", "Cupertino"];
+
+var homeOrigin = {
+    "Troy": [-73.675387, 42.737664],
+    "Colchester": [-73.197863, 44.544353],
+    "San Diego": [-117.202985, 32.872959],
+    "Cupertino": [-122.040358, 37.335161]
+};
+
+var x = d3.scale.linear().range([0, w]),
+    y = d3.scale.ordinal().rangeRoundBands([0, h], 0);
+
+var svg;
+
+var unit = "m";
+
+var tripObjects = {};
+var tripLines = {};
+var tripBars = {};
+
+var keyTrips = {};
+
+function load() {
+    svg = d3.select("body")
+            .append("div")
+            .attr("id", "svgContainer")
+            .append("svg")
+            .attr("width", w + m[1] + m[3])
+            .attr("height", h + m[0] + m[2])
+    
+    svg.append("rect")
+       .attr("x", "3")
+       .attr("y", "3")
+       .attr("width", w + m[1] + m[3] - 6)
+       .attr("height", h + m[0] + m[2] - 6)
+       .attr("stroke", "#ccc")
+       .attr("fill", "white");
+    
+    svg = svg.append("g")
+             .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
+
+    cityNames.forEach(function (city) {
+        d3.json("data/" + city + ".json", function(data) {
+            var albers = d3.geo.albers();
+            albers.origin(homeOrigin[city]);
+            albers.scale(800000)
+
+            var pathGenerator = d3.geo.path().projection(albers);
+
+            data.features.forEach(function (feature) {
+                var path = pathGenerator(feature);
+                var tripName = feature.properties.Name;
+
+                var tripLine = svg.append("path")
+                                  .attr("d", path)
+                                  .attr("fill", "none")
+                                  .attr("stroke", d3.rgb("#B5D8EB").darker(0.2))
+                                  .attr("stroke-width", 2)
+                                  .attr("class", "tripLine aa")
+                                  .attr("stroke-linejoin", "round")
+                                  .attr("stroke-linecap", "round")
+                                  .attr("transform", "translate(275, 25)")
+                                  .on("mouseover", function () { focusLine({"trip":tripName}); })
+                                  .on("mouseout", function () { defocusLine({"trip":tripName}); });
+                
+                tripLines[feature.properties.Name] = tripLine;
+            });
+        });
+    });
+
+    d3.csv("data/trips.csv", function(data) {
+        data.forEach(function(d) { d.meters = +d.meters; });
+        data.sort(function(a, b) { return b.meters - a.meters; });
+        data.forEach(function(d) { tripObjects[d.trip] = d; });
+        
+        data.forEach(function(d) { 
+            if (!keyTrips[d.city])
+                keyTrips[d.city] = [];
+
+            keyTrips[d.city].push(d.trip);
+            
+            if (!keyTrips[d.reason])
+                keyTrips[d.reason] = [];
+
+            keyTrips[d.reason].push(d.trip);
+        });
+
+        updateDomain();
+        bar(data);
+
+        function updateDomain() {
+            x.domain([0, d3.max(data, function(d) { return d.meters; })]);
+            y.domain(data.map(function(d) { return d.trip; }));
+        }
+        
+        function updateBarTransform() {
+            svg.selectAll("g.bar")
+               .transition()
+               .duration(500)
+               .attr("transform", function(d) { return "translate(0," + y(d.trip) + ")"; });
+        }
+        
+        function updateBarColors(f) {
+            svg.selectAll("g.bar")
+               .select("rect")
+               .transition()
+               .duration(500)
+               .attr("fill", function(d) { return (f ? f(d) : "#B5D8EB") })
+               .attr("stroke", function(d) { return d3.rgb((f ? f(d) : "#B5D8EB")).darker(0.5); });
+            
+            var tripNames = Object.getOwnPropertyNames(tripLines);
+            tripNames.forEach(function (tripName) {
+                tripLines[tripName].transition()
+                                   .duration(500)
+                                   .attr("stroke",  function(d) { return d3.rgb((f ? f(tripObjects[tripName]) : "#B5D8EB")).darker(0.2); })
+            });
+        }
+        
+        function updateValueUnit() {
+            var transformation = {"m": function(v) { return v; },
+                                  "ft": function(v) { return v * 3.281; },
+                                  "mi": function(v) { return v * 0.000621371192; } }[unit];
+            var formatter = {"m": format, "ft": format, "mi": decimalFormat}[unit];
+            
+            svg.selectAll("g.bar text.value")
+               .text(function(d) { return formatter(transformation(d.meters)) + unit; });
+        }
+
+        byLocation = function() {
+            data.sort(function(a, b) {
+                var aSortOrder = citySortOrder[a.city];
+                var bSortOrder = citySortOrder[b.city];
+
+                if (a.city != b.city)
+                    return bSortOrder - aSortOrder;
+
+                return b.meters - a.meters;
+            });
+
+            updateDomain();
+            updateBarTransform();
+            updateBarColors(function(d) { return cityColors[d.city]; });
+            destroyLegend();
+
+            var citySets = d3.nest()
+                             .key(function(d) { return d.city; })
+                             .entries(data);
+            
+            createLegend(citySets, function (legendSet) { return cityColors[legendSet.key]; });
+            
+            d3.select("#sorts").selectAll("a.button").attr("class", "button");
+            d3.select("#bylocation").attr("class", "button selected");
+        }
+        
+        byReason = function() {
+            data.sort(function(a, b) {
+                var aSortOrder = reasonSortOrder[a.reason];
+                var bSortOrder = reasonSortOrder[b.reason];
+
+                if (a.reason != b.reason)
+                    return bSortOrder - aSortOrder;
+
+                return b.meters - a.meters;
+            });
+
+            updateDomain();
+            updateBarTransform();
+            updateBarColors(function (d) { return reasonColors[d.reason]; });
+            destroyLegend();
+
+            var reasonSets = d3.nest()
+                             .key(function(d) { return d.reason; })
+                             .entries(data);
+            
+            createLegend(reasonSets, function (legendSet) { return reasonColors[legendSet.key]; });
+            
+            d3.select("#sorts").selectAll("a.button").attr("class", "button");
+            d3.select("#byreason").attr("class", "button selected");
+        }
+        
+        switchUnit = function(newUnit) {
+            unit = newUnit;
+            updateValueUnit();
+            
+            d3.select("#units").selectAll("a.button").attr("class", "button");
+            d3.select("#unit" + unit).attr("class", "button selected");
+        }
+
+        byDistance = function() {
+            data.sort(function(a, b) { return b.meters - a.meters; });
+            
+            updateDomain();
+            updateBarTransform();
+            updateBarColors();
+            destroyLegend();
+            
+            d3.select("#sorts").selectAll("a.button").attr("class", "button");
+            d3.select("#bydistance").attr("class", "button selected");
+        }
+    });
+}
+
+function destroyLegend() {
+    var legend = svg.selectAll(".legendContainer");
+    
+    
+    legend.attr("class", "removing");
+
+    legend.transition()
+          .duration(500)
+          .attr("transform", "translate(50, 0)");
+
+    legend.selectAll("text, path")
+          .transition()
+          .duration(500)
+          .attr("fill-opacity", 0.01)
+          .attr("stroke-opacity", 0.01)
+          .each("end", function () { legend.remove(); });;
+}
+
+function createLegend(legendData, colorFunc) {
+    legendData.forEach(function (legendSet) {
+        var minY = Infinity;
+        var maxY = 0;
+        legendSet.values.forEach(function (walk) {
+            var newY = y(walk.trip);
+            minY = Math.min(minY, newY);
+            maxY = Math.max(maxY, newY);
+        });
+        
+        var setWidth = 10;
+        var setHeight = (maxY - minY) + y.rangeBand() - 8;
+        var setX = w + setWidth;
+        var setY = minY + 4;
+        
+        var legend = svg.append("g")
+                        .attr("class", "legendContainer")
+                        .attr("transform", "translate(50, 0)");
+        
+        legend.append("path")
+              .attr("class", "legend")
+              .attr("d", "M" + [[setX, setY], [setX + setWidth, setY], [setX + setWidth, setY + setHeight], [setX, setY + setHeight]])
+              .attr("fill", "none")
+              .attr("stroke", colorFunc(legendSet))
+              .attr("stroke-width", 3)
+              .attr("stroke-opacity", 0.01)
+              .on("mouseover", function() { focusSet(legendSet.key, legend); })
+              .on("mouseout", function() { defocusSet(legendSet.key, legend); });
+        
+        legend.append("text")
+              .attr("class", "legend")
+              .attr("x", setX + setWidth + 10)
+              .attr("y", setY + (setHeight / 2))
+              .attr("alignment-baseline", "middle")
+              .attr("fill-opacity", 0.01)
+              .text(legendSet.key)
+              .on("mouseover", function() { focusSet(legendSet.key, legend); })
+              .on("mouseout", function() { defocusSet(legendSet.key, legend); });
+              
+        legend.transition()
+              .duration(500)
+              .attr("transform", "translate(0,0)")
+              .selectAll("text, path")
+              .transition()
+              .duration(500)
+              .attr("fill-opacity", 1)
+              .attr("stroke-opacity", 1);
+    });
+}
+
+function focusLine(d) {
+    tripLines[d.trip].attr("class", "aa tripLine tripLineBig");
+    
+    var subbar = svg.selectAll("g.bar")
+       .filter(function(i) { return i.trip == d.trip; });
+       
+    subbar.select("rect")
+          .attr("fill-opacity", 0.6);
+
+    subbar.select("text.label")
+          .attr("style", "font-weight: bold;");
+}
+
+function defocusLine(d) {
+    tripLines[d.trip].attr("class", "aa tripLine");
+       
+    var subbar = svg.selectAll("g.bar")
+       .filter(function(i) { return i.trip == d.trip; });
+    
+    subbar.select("rect")
+          .attr("fill-opacity", 1.0);
+    
+    subbar.select("text.label")
+          .attr("style", "font-weight: normal;");
+}
+
+function focusSet(key, legend) {
+    keyTrips[key].forEach(function (trip) {
+        tripLines[trip].attr("class", "aa tripLine tripLineBig");
+    });
+    
+    legend.select("path")
+          .attr("stroke-opacity", 0.6);
+
+    legend.select("text")
+          .attr("style", "font-weight: bold;");
+}
+
+function defocusSet(key, legend) {
+    keyTrips[key].forEach(function (trip) {
+        tripLines[trip].attr("class", "aa tripLine");
+    });
+    
+    legend.select("path")
+          .attr("stroke-opacity", 1.0);
+
+    legend.select("text")
+          .attr("style", "font-weight: normal;");
+}
+
+function bar(data) {
+    var bar = svg.selectAll("g.bar")
+                 .data(data)
+                 .enter()
+                 .append("g")
+                 .attr("class", "bar")
+                 .attr("transform", function(d) { return "translate(0," + y(d.trip) + ")"; });
+
+    bar.append("rect")
+       .attr("width", function(d) { return x(d.meters); })
+       .attr("height", y.rangeBand())
+       .attr("opacity", 1)
+       .attr("fill", function(d) { return "#B5D8EB"; })
+       .attr("stroke", function(d) { return d3.rgb("#B5D8EB").darker(0.5); })
+       .on("mouseover", focusLine)
+       .on("mouseout", defocusLine);
+
+    bar.append("text")
+       .attr("class", "value")
+       .attr("x", 0)
+       .attr("y", y.rangeBand() / 2)
+       .attr("dx", -4)
+       .attr("dy", ".3em")
+       .attr("text-anchor", "end")
+       .text(function(d) { return format(d.meters) + "m"; })
+       .on("mouseover", focusLine)
+       .on("mouseout", defocusLine);
+
+    bar.append("text")
+       .attr("class", "label")
+       .attr("x", 4)
+       .attr("y", y.rangeBand() / 2)
+       .attr("dy", ".3em")
+       .text(function(d) { return d.trip; })
+       .on("mouseover", focusLine)
+       .on("mouseout", defocusLine);
+
+    return bar;
+}
+
+            </script>
+    </head>
+    <body onload="load()">
+        <div class="buttonContainer">
+            <div id="sorts" class="buttonGroup">
+                <div class="buttonTitle">Sort By</div>
+                <a id="bydistance" class="button selected" href="javascript:byDistance()">Distance</a><a id="bylocation" class="button" href="javascript:byLocation()">Location</a><a id="byreason" class="button" href="javascript:byReason()">Reason</a>
+            </div>
+            <div id="units" class="buttonGroup">
+                <div class="buttonTitle">Measurements In</div>
+                <a id="unitm" class="button selected" href="javascript:switchUnit('m')">Meters</a><a id="unitft" class="button" href="javascript:switchUnit('ft')">Feet</a><a id="unitmi" class="button" href="javascript:switchUnit('mi')">Miles</a>
+            </div>
+        </div>
+  </body>
+</html>
